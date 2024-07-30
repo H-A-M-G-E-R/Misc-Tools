@@ -186,6 +186,27 @@ def patch_vertical(f, value):
 def patch_roomlength(f, value):
 	f.patch(0x6b6d4, b"\x1f\x20\x03\xd5") # Patch to use length property instead of 200 in versus/co-op
 
+def patch_sprites(f, value):
+	n_rows = 2 ** int(value) * 8 if value else "" # Let this be a power of 2 because of floating-point roundoff error
+	
+	if (not value):
+		tkinter.messagebox.showwarning("Patch sprite number warning", "You didn't put in a number of times to multiply. Number of rows will be set to the default! (8)")
+		n_rows = 8
+	
+	tkinter.messagebox.showwarning("Patch sprite number warning", f"Changing the number of rows breaks the graphics if you don't resize sprites.png to 8:{n_rows}. Leave it as sprites.png.mp3 instead of converting to sprites.png.mtx to eliminate generation loss.")
+	
+	f.patch(0x4e9ac, struct.pack("<I", patch_const_mov_instruction_arm64(struct.unpack("<I", b"\x02\x01\x80\x52")[0], n_rows)))
+	f.patch(0x4e9c0, b"\x03\x01\x80\x52")
+	
+	# Menu clouds
+	# Overwrite 2 unused nops in 0x44134 and 0x44138
+	f.patch(0x7a9fc, b"\xc3\xb9\xe4\x1c") # ldr s3,0x144134 (was fmov s3,0.25)
+	f.patch(0x7aab0, b"\x22\xb4\xe4\x1c") # ldr s2,0x144134 (was fmov s2,0.25)
+	f.patch(0x7ab58, b"\x00\xaf\xe4\x1c") # ldr s0,0x144138 (was fmov s0,0.125)
+	f.patch(0x7abfc, b"\xe0\xa9\xe4\x1c") # ldr s0,0x144138 (was fmov s0,0.125)
+	f.patch(0x44134, struct.pack("<f", 2 / n_rows))
+	f.patch(0x44138, struct.pack("<f", 1 / n_rows))
+
 PATCH_LIST = {
 	"antitamper": patch_antitamper,
 	"premium": patch_premium,
@@ -200,6 +221,7 @@ PATCH_LIST = {
 	"package": patch_package,
 	"vertical": patch_vertical,
 	"roomlength": patch_roomlength,
+	"sprites": patch_sprites,
 }
 
 def applyPatches(location, patches):
@@ -327,6 +349,8 @@ def gui(default_path = None):
 	package = w.checkbox("Load package, io and os modules in scripts")
 	vertical = w.checkbox("Allow running in vertical resolutions")
 	roomlength = w.checkbox("Allow using room length property in versus/co-op instead of sticking to 200")
+	sprites = w.checkbox("Multiply the number of decal types by (integer)^2:")
+	sprites_val = w.textbox(True)
 	
 	def x():
 		"""
@@ -353,6 +377,8 @@ def gui(default_path = None):
 				"package": package.get(),
 				"vertical": vertical.get(),
 				"roomlength": roomlength.get(),
+				"sprites": sprites.get(),
+				"sprites_val": sprites_val.get(),
 			}
 			
 			applyPatches(location.get() if type(location) != str else location, patches)
