@@ -193,7 +193,7 @@ def patch_sprites(f, value):
 		tkinter.messagebox.showwarning("Patch sprite number warning", "You didn't put in a number of times to multiply. Number of rows will be set to the default! (8)")
 		n_rows = 8
 	
-	tkinter.messagebox.showwarning("Patch sprite number warning", f"Changing the number of rows breaks the graphics if you don't resize sprites.png to 8:{n_rows}. Leave it as sprites.png.mp3 instead of converting to sprites.png.mtx to eliminate generation loss.")
+	tkinter.messagebox.showwarning("Patch sprite number warning", f"Changing the number of rows breaks the graphics if you don't add blank space at the bottom of sprites.png so the aspect ratio is 8:{n_rows}. Leave it as sprites.png.mp3 instead of converting to sprites.png.mtx to eliminate generation loss.")
 	
 	f.patch(0x4e9ac, struct.pack("<I", patch_const_mov_instruction_arm64(struct.unpack("<I", b"\x02\x01\x80\x52")[0], n_rows)))
 	f.patch(0x4e9c0, b"\x03\x01\x80\x52")
