@@ -66,11 +66,15 @@ def patch_training_rng(f, value):
 def patch_training_ballcount(f, value):
 	f.patch(0x6ba5c, b"\x06\x00\x00\x14")
 
+def patch_low_quality_decals(f, value):
+	f.patch(0x17d31c, b"\x1f\x20\x03\xd5")
+
 PATCH_LIST = {
 	"antitamper": patch_antitamper,
 	"bosses": patch_bosses,
 	"training_rng": patch_training_rng,
 	"training_ballcount": patch_training_ballcount,
+	"low_quality_decals": patch_low_quality_decals,
 }
 
 def applyPatches(location, patches):
@@ -184,6 +188,7 @@ def gui(default_path = None):
 	bosses = w.checkbox("Enable boss rooms in training/classic modes")
 	training_rng = w.checkbox("Enable random room layouts in training mode")
 	training_ballcount = w.checkbox("Remove ball count cap of 500 in training mode")
+	low_quality_decals = w.checkbox("Enable decals in low quality graphics")
 	
 	def x():
 		"""
@@ -196,6 +201,7 @@ def gui(default_path = None):
 				"bosses": bosses.get(),
 				"training_rng": training_rng.get(),
 				"training_ballcount": training_ballcount.get(),
+				"low_quality_decals": low_quality_decals.get(),
 			}
 			
 			applyPatches(location.get() if type(location) != str else location, patches)
