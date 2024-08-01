@@ -54,8 +54,15 @@ def patch_antitamper(f, value):
 	f.patch(0x468fc, b"\x3b\x00\x00\x14")
 	f.patch(0x46b80, b"\x0a\x00\x00\x14")
 
+def patch_premium(f, value):
+	tkinter.messagebox.showwarning("Software copyright notice", "APKs where premium is patched should NOT be distrubuted, and this functionality is only available for users to extercise their right to modify software that they own for private use. If you do not own premium, you should delete the patched file immediately.")
+	
+	f.patch(0x75720, b"\x07\x00\x00\x14")
+	f.patch(0x7bfb8, b"\x06\x00\x00\x14")
+
 PATCH_LIST = {
 	"antitamper": patch_antitamper,
+	"premium": patch_premium,
 }
 
 def applyPatches(location, patches):
@@ -166,6 +173,7 @@ def gui(default_path = None):
 	w.label("Please select what patches you would like to apply:")
 	
 	antitamper = w.checkbox("Disable anti-tamper protection (required)", default = True)
+	premium = w.checkbox("Enable premium by default")
 	
 	def x():
 		"""
@@ -175,6 +183,7 @@ def gui(default_path = None):
 		try:
 			patches = {
 				"antitamper": antitamper.get(),
+				"premium": premium.get(),
 			}
 			
 			applyPatches(location.get() if type(location) != str else location, patches)
