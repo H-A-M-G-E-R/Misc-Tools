@@ -48,27 +48,23 @@ class File():
 		
 		self.file.close()
 
-def patch_const_mov_instruction_arm64(old, value):
-	mask = 0b11100000111111110001111100000000
+def patch_const_instruction_arm64(old, value, length, zeros): # The instruction is in little-endian
+	mask = int("1"*length, 2) << zeros
 	
 	old = old & (~mask)
 	
-	last = (value & 0b111) << 29
-	first = ((value >> 3) & 0b11111111) << 16
-	new = last | first
+	new = value << zeros
 	
 	return (old | new)
 
+def patch_const_mov_instruction_arm64(old, value):
+	return patch_const_instruction_arm64(old, value, 16, 5)
+
 def patch_const_subs_instruction_arm64(old, value):
-	mask = 0b00000000111111000011111100000000
-	
-	old = old & (~mask)
-	
-	last = (value & 0b111111) << 18
-	first = ((value >> 6) & 0b111111) << 8
-	new = last | first
-	
-	return (old | new)
+	return patch_const_instruction_arm64(old, value, 12, 10)
+
+def patch_const_cmp_instruction_arm64(old, value):
+	return patch_const_instruction_arm64(old, value, 12, 10)
 
 def patch_antitamper(f, value):
 	f.patch(0x47130, b"\x1f\x20\x03\xd5")
@@ -114,10 +110,67 @@ def patch_balls(f, value):
 	value = int(value)
 	
 	# Somehow, this works.
-	d = struct.unpack(">I", f.read(0x57cf4))[0]
-	f.patch(0x57cf4, struct.pack(">I", patch_const_mov_instruction_arm64(d, value)))
+	d = struct.unpack("<I", f.read(0x57cf4))[0]
+	f.patch(0x57cf4, struct.pack("<I", patch_const_mov_instruction_arm64(d, value)))
 	
 	f.patch(0x57ff8, struct.pack("<I", value))
+
+def patch_checkpoints(f, value):
+	if (not value):
+		tkinter.messagebox.showerror("Checkpoints error", "You didn't put in a value for the number of checkpoints in your mod. Checkpoints won't be patched!")
+		return
+	
+	value = int(value)
+	if (value < 1 or value > 26):
+		tkinter.messagebox.showerror("Checkpoints error", "The number of checkpoints (including start and endless) must be greater than 0 or less than 27!")
+		return
+	
+	# Internally, checkpoint balls and streaks are stored across 13 checkpoints across 6 modes.
+	# We need to change so that they're stored across 26 checkpoints across the first 3 modes (training, classic and mayhem).
+	
+	# Player::load
+	f.patch(0x574d0, b"\x3f\x67\x00\x71") # cmp w25,#25
+	f.patch(0x57564, b"\x41\x03\x80\x52") # mov w1,#26
+	
+	# Player::save
+	f.patch(0x57ac4, b"\x1f\x6b\x00\x71") # cmp w24,#26
+	f.patch(0x57ad0, b"\x1f\x0c\x00\x71") # cmp w0,#3 (saving now stops at mayhem instead of co-op)
+	f.patch(0x57aec, b"\x00\xa0\x01\x91") # add x0,x0,#104 (26*4=104)
+	
+	# Player::reportCheckpoint
+	f.patch(0x57bac, b"\x5f\x60\x00\x71") # cmp w2,#24
+	f.patch(0x57bb8, b"\x43\x03\x80\x52") # mov w3,#26
+	
+	# Player::getHighScore
+	f.patch(0x57c10, b"\x5f\x60\x00\x71") # cmp w2,#24
+	f.patch(0x57c20, b"\x42\x03\x80\xd2") # mov x2,#26
+	f.patch(0x57c24, b"\x62\x7c\x02\x9b") # mul x2,x3,x2
+	
+	# Player::getHighScoreStreak
+	f.patch(0x57c40, b"\x7f\x60\x00\x71") # cmp w3,#24
+	f.patch(0x57c4c, b"\x42\x03\x80\xd2") # mov x2,#26
+	f.patch(0x57c50, b"\x62\x7c\x02\x9b") # mul x2,x3,x2
+	
+	# Player::loadCheckpoint
+	f.patch(0x57c84, b"\x1f\x60\x00\x71") # cmp w0,#24
+	f.patch(0x57c94, b"\x43\x03\x80\x52") # mov w3,#26
+	
+	# Distance scaling below endless mode which is the last checkpoint
+	f.patch(0x6b418, struct.pack("<I", patch_const_cmp_instruction_arm64(struct.unpack("<I", f.read(0x6b418))[0], value-2))) # w0,#value-2
+	
+	# This is in an unused function but I will patch it anyways.
+	f.patch(0x58010, struct.pack("<I", patch_const_mov_instruction_arm64(struct.unpack("<I", f.read(0x58010))[0], value)))
+	
+	# Change the special cases for zen/versus/co-op menu meshes from 14/15/16 to 27/28/29
+	f.patch(0x78658, b"\x1f\x6f\x00\x71") # cmp w24,#27
+	f.patch(0x78660, b"\x1f\x73\x00\x71") # cmp w24,#28
+	f.patch(0x78668, b"\x1f\x77\x00\x71") # cmp w24,#29
+	f.patch(0x7b450, b"\x66\x03\x80\x52") # mov w6,#27
+	f.patch(0x7b444, b"\x86\x03\x80\x52") # mov w6,#28
+	f.patch(0x799e0, b"\xa6\x03\x80\x52") # mov w6,#29
+	
+	# Number of meshes rendered in training/classic/mayhem mode menus
+	f.patch(0x799e8, struct.pack("<I", patch_const_mov_instruction_arm64(struct.unpack("<I", f.read(0x799e8))[0], value)))
 
 def patch_hit(f, value):
 	if (not value):
@@ -127,12 +180,12 @@ def patch_hit(f, value):
 	value = int(value)
 	
 	# Patch the number of balls to subtract from the score
-	d = struct.unpack(">I", f.read(0x715f0))[0]
-	f.patch(0x715f0, struct.pack(">I", patch_const_subs_instruction_arm64(d, value)))
+	d = struct.unpack("<I", f.read(0x715f0))[0]
+	f.patch(0x715f0, struct.pack("<I", patch_const_subs_instruction_arm64(d, value)))
 	
 	# Patch the number of balls to drop
-	d = struct.unpack(">I", f.read(0x71624))[0]
-	f.patch(0x71624, struct.pack(">I", patch_const_mov_instruction_arm64(d, value)))
+	d = struct.unpack("<I", f.read(0x71624))[0]
+	f.patch(0x71624, struct.pack("<I", patch_const_mov_instruction_arm64(d, value)))
 	
 	# This changes from "cmp w23,#0xa" to "cmp w23,w1" so that we don't
 	# need to make a specific patch for the comparision.
@@ -216,6 +269,7 @@ PATCH_LIST = {
 	"hit": patch_hit,
 	"fov": patch_fov,
 	"seconds": patch_seconds,
+	"checkpoints": patch_checkpoints,
 	"realpaths_segments": patch_realpaths_segments,
 	"realpaths": patch_realpaths,
 	"package": patch_package,
@@ -319,7 +373,7 @@ class Window():
 		self.window.mainloop()
 
 def gui(default_path = None):
-	w = Window(f"Smash Hit Binary Modification Tool v{VERSION[0]}.{VERSION[1]}.{VERSION[2]} (by Knot126 and H A M)", "510x640")
+	w = Window(f"Smash Hit Binary Modification Tool v{VERSION[0]}.{VERSION[1]}.{VERSION[2]} (by Knot126 and H A M)", "510x680")
 	
 	w.label("This tool will let you add common patches to Smash Hit's main binary.")
 	
@@ -344,6 +398,8 @@ def gui(default_path = None):
 	fov_val = w.textbox(True)
 	seconds = w.checkbox("Set the room time in seconds to (float):")
 	seconds_val = w.textbox(True)
+	checkpoints = w.checkbox("Set the number of checkpoints to (integer):")
+	checkpoints_val = w.textbox(True)
 	realpaths_segments = w.checkbox("Use absolute paths for segments")
 	realpaths = w.checkbox("Use absolute paths for rooms and levels")
 	package = w.checkbox("Load package, io and os modules in scripts")
@@ -372,6 +428,8 @@ def gui(default_path = None):
 				"hit_val": hit_val.get(),
 				"seconds": seconds.get(),
 				"seconds_val": seconds_val.get(),
+				"checkpoints": checkpoints.get(),
+				"checkpoints_val": checkpoints_val.get(),
 				"realpaths_segments": realpaths_segments.get(),
 				"realpaths": realpaths.get(),
 				"package": package.get(),
