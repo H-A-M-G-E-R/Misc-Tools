@@ -60,9 +60,24 @@ def patch_premium(f, value):
 	f.patch(0x75720, b"\x07\x00\x00\x14")
 	f.patch(0x7bfb8, b"\x06\x00\x00\x14")
 
+def patch_fps(f, value):
+	value = float(value) if value else ""
+	
+	if (not value):
+		tkinter.messagebox.showwarning("Patch FPS warning", "You didn't put in an FPS. It won't be patched!")
+		return
+	
+	# PinOut normalises the value to the range [0.0, 1.0] so we need to take the inverse
+	f.patch(0x1d4c14, struct.pack("<f", 1 / value))
+	f.patch(0x1d4c20, struct.pack("<f", 1 / value))
+	f.patch(0x6dee0, struct.pack("<f", 1 / value)) # only in the unused capture mode
+	f.patch(0x1d2c04, struct.pack("<f", 1 / value))
+	f.patch(0x46a40, b"\x1f\x20\x03\xd5") # remove frame limiter
+
 PATCH_LIST = {
 	"antitamper": patch_antitamper,
 	"premium": patch_premium,
+	"fps": patch_fps,
 }
 
 def applyPatches(location, patches):
@@ -174,6 +189,8 @@ def gui(default_path = None):
 	
 	antitamper = w.checkbox("Disable anti-tamper protection (required)", default = True)
 	premium = w.checkbox("Enable premium by default")
+	fps = w.checkbox("Set the frames per second to (float):")
+	fps_val = w.textbox(True)
 	
 	def x():
 		"""
@@ -184,6 +201,8 @@ def gui(default_path = None):
 			patches = {
 				"antitamper": antitamper.get(),
 				"premium": premium.get(),
+				"fps": fps.get(),
+				"fps_val": fps_val.get(),
 			}
 			
 			applyPatches(location.get() if type(location) != str else location, patches)
