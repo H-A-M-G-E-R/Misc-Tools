@@ -73,7 +73,7 @@ def patch_fps(f, value):
 	value = float(value) if value else ""
 	
 	if (not value):
-		tkinter.messagebox.showwarning("Patch FPS warning", "You didn't put in a room length in seconds. It won't be patched!")
+		tkinter.messagebox.showwarning("Patch FPS warning", "You didn't put in an FPS. It won't be patched!")
 		return
 	
 	# Smash Hit normalises the value to the range [0.0, 1.0] so we need to take the inverse
