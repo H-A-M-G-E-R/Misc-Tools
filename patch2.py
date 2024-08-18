@@ -69,12 +69,27 @@ def patch_training_ballcount(f, value):
 def patch_low_quality_decals(f, value):
 	f.patch(0x17d31c, b"\x1f\x20\x03\xd5")
 
+def patch_fps(f, value):
+	value = float(value) if value else ""
+	
+	if (not value):
+		tkinter.messagebox.showwarning("Patch FPS warning", "You didn't put in a room length in seconds. It won't be patched!")
+		return
+	
+	# Smash Hit normalises the value to the range [0.0, 1.0] so we need to take the inverse
+	f.patch(0x1e3b1c, struct.pack("<f", 1 / value))
+	f.patch(0x1e7584, struct.pack("<f", 1 / value))
+	f.patch(0x644e0, struct.pack("<f", 1 / value)) # only in the unused capture mode
+	f.patch(0x1e960c, struct.pack("<f", 1 / value))
+	f.patch(0x475a0, b"\x1f\x20\x03\xd5") # remove frame limiter
+
 PATCH_LIST = {
 	"antitamper": patch_antitamper,
 	"bosses": patch_bosses,
 	"training_rng": patch_training_rng,
 	"training_ballcount": patch_training_ballcount,
 	"low_quality_decals": patch_low_quality_decals,
+	"fps": patch_fps,
 }
 
 def applyPatches(location, patches):
@@ -189,6 +204,8 @@ def gui(default_path = None):
 	training_rng = w.checkbox("Enable random room layouts in training mode")
 	training_ballcount = w.checkbox("Remove ball count cap of 500 in training mode")
 	low_quality_decals = w.checkbox("Enable decals in low quality graphics")
+	fps = w.checkbox("Set the frames per second to (float):")
+	fps_val = w.textbox(True)
 	
 	def x():
 		"""
@@ -202,6 +219,8 @@ def gui(default_path = None):
 				"training_rng": training_rng.get(),
 				"training_ballcount": training_ballcount.get(),
 				"low_quality_decals": low_quality_decals.get(),
+				"fps": fps.get(),
+				"fps_val": fps_val.get(),
 			}
 			
 			applyPatches(location.get() if type(location) != str else location, patches)
