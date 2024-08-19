@@ -199,7 +199,7 @@ def gui(default_path = None):
 	training_rng = w.checkbox("Enable random room layouts in training mode")
 	training_ballcount = w.checkbox("Remove ball count cap of 500 in training mode")
 	low_quality_decals = w.checkbox("Enable decals in low quality graphics")
-	variable_framerate = w.checkbox("Enable variable refresh rate")
+	variable_framerate = w.checkbox("Enable variable framerate depending on screen refresh rate")
 	
 	def x():
 		"""
