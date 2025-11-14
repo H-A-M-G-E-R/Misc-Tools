@@ -405,7 +405,7 @@ def gui(default_path = None):
 	package = w.checkbox("Load package, io and os modules in scripts")
 	vertical = w.checkbox("Allow running in vertical resolutions")
 	roomlength = w.checkbox("Allow using room length property in versus/co-op instead of sticking to 200")
-	sprites = w.checkbox("Multiply the number of decal types by (integer)^2:")
+	sprites = w.checkbox("Multiply the number of decal images by 2^(integer):")
 	sprites_val = w.textbox(True)
 	
 	def x():
