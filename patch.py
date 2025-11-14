@@ -251,7 +251,8 @@ def patch_sprites(f, value):
 	# Patch RenderLevel::addSprite at 0x4e620 (there are two functions of the same name)
 	f.patch(0x4e9ac, struct.pack("<I", patch_const_mov_instruction_arm64(struct.unpack("<I", b"\x02\x01\x80\x52")[0], n_rows))) # was w2,#0x8
 	f.patch(0x4e9c0, b"\x03\x01\x80\x52") # mov w3,#0x8 (was mov w3,w2)
-	
+	f.patch(0x4e9dc, b"\x19\x00\x00\x14") # remove slight cropping to be able to use full 256x256px images, but this would make sprites slightly smaller than vanilla (b 0x14ea40)
+
 	# Menu clouds
 	# Patch Menu::draw
 	# Overwrite 2 unused nops in 0x44134 and 0x44138
