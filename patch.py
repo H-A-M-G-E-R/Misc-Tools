@@ -248,10 +248,12 @@ def patch_sprites(f, value):
 	
 	tkinter.messagebox.showwarning("Patch sprite number warning", f"Changing the number of rows breaks the graphics if you don't add blank space at the bottom of sprites.png so the aspect ratio is 8:{n_rows}. Leave it as sprites.png.mp3 instead of converting to sprites.png.mtx to eliminate generation loss.")
 	
-	f.patch(0x4e9ac, struct.pack("<I", patch_const_mov_instruction_arm64(struct.unpack("<I", b"\x02\x01\x80\x52")[0], n_rows)))
-	f.patch(0x4e9c0, b"\x03\x01\x80\x52")
+	# Patch RenderLevel::addSprite at 0x4e620 (there are two functions of the same name)
+	f.patch(0x4e9ac, struct.pack("<I", patch_const_mov_instruction_arm64(struct.unpack("<I", b"\x02\x01\x80\x52")[0], n_rows))) # was w2,#0x8
+	f.patch(0x4e9c0, b"\x03\x01\x80\x52") # mov w3,#0x8 (was mov w3,w2)
 	
 	# Menu clouds
+	# Patch Menu::draw
 	# Overwrite 2 unused nops in 0x44134 and 0x44138
 	f.patch(0x7a9fc, b"\xc3\xb9\xe4\x1c") # ldr s3,0x144134 (was fmov s3,0.25)
 	f.patch(0x7aab0, b"\x22\xb4\xe4\x1c") # ldr s2,0x144134 (was fmov s2,0.25)
@@ -259,6 +261,19 @@ def patch_sprites(f, value):
 	f.patch(0x7abfc, b"\xe0\xa9\xe4\x1c") # ldr s0,0x144138 (was fmov s0,0.125)
 	f.patch(0x44134, struct.pack("<f", 2 / n_rows))
 	f.patch(0x44138, struct.pack("<f", 1 / n_rows))
+
+def patch_door_decals(f, value):
+	n_rows = 2 ** int(value) * 2 if value else "" # Let this be a power of 2 because of floating-point roundoff error
+	
+	if (not value):
+		tkinter.messagebox.showwarning("Patch door decal number warning", "You didn't put in a number of times to multiply. Number of rows will be set to the default! (2)")
+		n_rows = 8
+	
+	tkinter.messagebox.showwarning("Patch door decal number warning", f"Changing the number of rows breaks the graphics if you don't add blank space at the bottom of doors.png so the aspect ratio is 2:{n_rows}. Leave it as doors.png.mp3 instead of converting to doors.png.mtx to eliminate generation loss.")
+	
+	# Patch RenderLevel::addSprite at 0x4e620 (there are two functions of the same name)
+	f.patch(0x4eb78, struct.pack("<I", patch_const_mov_instruction_arm64(struct.unpack("<I", b"\x42\x00\x80\x52")[0], n_rows))) # was w2,#0x2
+	f.patch(0x4eb90, b"\x43\x00\x80\x52") # mov w3,#0x2 (was mov w3,w2)
 
 PATCH_LIST = {
 	"antitamper": patch_antitamper,
@@ -276,6 +291,7 @@ PATCH_LIST = {
 	"vertical": patch_vertical,
 	"roomlength": patch_roomlength,
 	"sprites": patch_sprites,
+	"door_decals": patch_door_decals
 }
 
 def applyPatches(location, patches):
@@ -373,7 +389,7 @@ class Window():
 		self.window.mainloop()
 
 def gui(default_path = None):
-	w = Window(f"Smash Hit Binary Modification Tool v{VERSION[0]}.{VERSION[1]}.{VERSION[2]} (by Knot126 and H A M)", "510x680")
+	w = Window(f"Smash Hit Binary Modification Tool v{VERSION[0]}.{VERSION[1]}.{VERSION[2]} (by Knot126 and H A M)", "510x720")
 	
 	w.label("This tool will let you add common patches to Smash Hit's main binary.")
 	
@@ -405,8 +421,10 @@ def gui(default_path = None):
 	package = w.checkbox("Load package, io and os modules in scripts")
 	vertical = w.checkbox("Allow running in vertical resolutions")
 	roomlength = w.checkbox("Allow using room length property in versus/co-op instead of sticking to 200")
-	sprites = w.checkbox("Multiply the number of decal images by 2^(integer):")
+	sprites = w.checkbox("Multiply num of decal images by 2^(integer):")
 	sprites_val = w.textbox(True)
+	door_decals = w.checkbox("Multiply num of door decal images by 2^(integer):")
+	door_decals_val = w.textbox(True)
 	
 	def x():
 		"""
@@ -437,6 +455,8 @@ def gui(default_path = None):
 				"roomlength": roomlength.get(),
 				"sprites": sprites.get(),
 				"sprites_val": sprites_val.get(),
+				"door_decals": door_decals.get(),
+				"door_decals_val": door_decals_val.get(),
 			}
 			
 			applyPatches(location.get() if type(location) != str else location, patches)
